@@ -1,0 +1,50 @@
+{
+  "name": "dsh-plugin-git-commits",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Browse git history and compare the files changed by each commit",
+  "icon": "./icon.svg",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg"
+  ],
+  "keywords": [
+    "dsh-plugin",
+    "git",
+    "git-commits",
+    "diff",
+    "deepseek-harness"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/simin-xxm/dsh-plugin-git-commits#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simin-xxm/dsh-plugin-git-commits.git"
+  },
+  "bugs": {
+    "url": "https://github.com/simin-xxm/dsh-plugin-git-commits/issues"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  }
+}

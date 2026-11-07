@@ -1,0 +1,4 @@
+# Git commits: the Host half serves read-only history, the Client half renders it.
+- insert:
+    - id: git-commits
+      name: 'dsh-plugin-git-commits'
