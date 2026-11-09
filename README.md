@@ -1,53 +1,57 @@
-# Git 提交 / Git commits
+# dsh-plugin-git-commits
 
-DeepSeek Harness 插件：在 Web UI 侧边栏底部加一个「Git 提交」入口，点开后可以
+[English](./README.md) | [中文](./README.zh.md)
 
-- **改动**：查看工作区未提交的改动，逐个文件暂存 / 取消暂存，写提交信息后提交，并把当前分支推送到远端
-- **提交历史**：浏览提交列表，逐个提交对比改动文件的统一差异（unified diff）
+A DeepSeek Harness plugin that adds a **Git commits** entry to the Web UI sidebar. Browse commit history, compare file diffs, stage and commit your changes, and sync, pull, or push the current branch — without leaving the app.
 
-## 安装
+## Features
+
+### Changes tab
+
+- Files grouped into **Staged** and **Unstaged** (including untracked), with `A` `M` `D` `R` `U` badges and `+n / -n` counts
+- Toggle staging per file, or stage/unstage everything from the group header
+- Side-by-side diff with line numbers: worktree vs index, index vs HEAD; untracked files render as new-file diffs
+- Commit box: `⌘/Ctrl + Enter` commits, and only staged changes are committed; the button shows the file count
+- **Sync** runs `git fetch --all --prune` and shows `↓n` (behind) / `↑n` (ahead) badges
+- **Pull ↓n** integrates the incoming commits, with rebase (default) or merge, `--autostash` so uncommitted work is preserved
+- **Push** publishes the branch; the first push sets the upstream with `-u origin HEAD`
+- Every remote write asks for confirmation first
+- When a pull conflicts, a red banner lists the conflicted files and offers **Abort merge** (`git rebase --abort` / `merge --abort`)
+
+### History tab
+
+- Commit list with short hash, author, date, and subject, paged with **Load more**
+- Per-commit file list, and a unified diff with line numbers, green additions, red deletions, and highlighted hunk headers
+
+## Install
 
 ```bash
 dsh plugin add dsh-plugin-git-commits
 ```
 
-装进指定 profile（`web` 是 Web UI 正在使用的那个，`headless` 是无界面模式，两者互不影响）：
+Install into a specific profile (each profile is independent):
 
 ```bash
 dsh plugin --profile web add dsh-plugin-git-commits
 ```
 
-装完重启 `dsh web` 宿主才会挂载。验证：
+Restart the `dsh web` host after installing so the bundle is mounted, then verify:
 
 ```bash
 dsh plugins list
 ```
 
-## 能力
+Requires `git` on the `PATH`. If it lives elsewhere, point `DSH_GIT_BINARY` at its absolute path.
 
-改动页
+## How it works
 
-- 已暂存 / 未暂存（含未跟踪）两组文件，`A` `M` `D` `R` `U` 状态徽标与 `+n / -n` 统计
-- 单文件「+ / −」切换暂存状态，分组头可「全部暂存 / 全部取消暂存」
-- 选中文件显示带行号的 diff：工作区 vs 索引、索引 vs HEAD，未跟踪文件按新增文件渲染
-- 提交框：`⌘/Ctrl + Enter` 提交，只提交已暂存内容；按钮上显示待提交文件数
-- 推送：显示领先 / 落后远端提交数；首次推送自动 `-u origin HEAD`；点击后需再点一次「确认推送」
-- 分支、远端、仓库路径在头部与底部展示，操作结果（成功输出或 git 报错原文）就地显示
-
-历史页
-
-- 提交列表（短哈希、作者、时间、标题）分页加载
-- 选中提交后列出改动文件，选中文件查看带行号的 diff，新增 / 删除分色，hunk 头高亮
-
-## 组成
-
-| 半边 | 文件 | 作用 |
+| Half | File | Role |
 | --- | --- | --- |
-| Host | `index.js` | 读路由 `/git-commits-api`（resource，仅 GET/HEAD）+ 写路由 `/git-commits-write`（raw handler，仅 POST） |
-| Client | `client.js` | `sidebar.footer.action` 入口按钮 + `shell.overlay` 抽屉面板 |
-| 展示 | `locale/*.json`、`icon.svg` | 插件管理页里的标题、描述与图标 |
+| Host | `index.js` | Read route `/git-commits-api` (resource, GET/HEAD) and write route `/git-commits-write` (raw handler, POST) |
+| Client | `client.js` | `sidebar.footer.action` trigger button and `shell.overlay` drawer panel |
+| Display | `locale/*.json`, `icon.svg` | Plugin Manager title, description, and icon |
 
-读接口（GET，返回 JSON）：
+Read endpoints (GET, JSON):
 
 ```
 GET /git-commits-api/workspaces
@@ -58,34 +62,29 @@ GET /git-commits-api/diff?path=<dir>&hash=<commit>&file=<path>
 GET /git-commits-api/workdiff?path=<dir>&file=<path>&staged=0|1
 ```
 
-写接口（POST，JSON body）：
+Write endpoints (POST, JSON body):
 
 ```
 POST /git-commits-write/stage?path=<dir>     { "files": ["a"] } | { "all": true }
 POST /git-commits-write/unstage?path=<dir>   { "files": ["a"] } | { "all": true }
 POST /git-commits-write/commit?path=<dir>    { "message": "feat: ..." }
+POST /git-commits-write/fetch?path=<dir>     {}
+POST /git-commits-write/pull?path=<dir>      { "mode": "rebase" | "merge" }
 POST /git-commits-write/push?path=<dir>      {}
+POST /git-commits-write/abort?path=<dir>     {}
 ```
 
-## 安全边界
+`fetch` returns `ahead`, `behind`, and `incoming` (the commits the remote has that the local branch does not). A failed `pull` returns `conflicts`, the conflicted file paths.
 
-- 只对 `workspaceRegistry` 登记过的工作区（以及 profile 默认目录）执行命令，其它路径一律 403
-- 文件路径必须是仓库内相对路径：绝对路径、`..`、以 `-` 开头的一律拒绝
-- 写请求要求 `Origin` 与 `Host` 同源，否则 403；读请求只接受 GET/HEAD
-- `git` 命令全部用 argv 数组执行，不经 shell；写命令超时 120s，读命令 20s
-- 推送不是破坏性操作，但会改写远端分支，因此界面上需要二次确认
+## Safety
 
-## 安装位置与维护
+- Commands only ever run in workspaces registered with `workspaceRegistry` (plus the profile's default directory). Any other path is rejected with 403.
+- File paths must be repository-relative: absolute paths, `..`, and leading `-` are all refused.
+- Write requests must be same-origin (`Origin` must match `Host`); reads accept only GET and HEAD.
+- Every `git` invocation goes through an argv array, never a shell. Writes time out after 120s, reads after 20s.
+- Pushing rewrites a remote branch and pulling rewrites the working tree, so both ask for confirmation. Pulling uses `--autostash` to protect uncommitted changes.
+- A failed pull leaves the repository in a conflicted state; **Abort merge** returns it to where it was before the pull.
 
-- 源码：`~/code/dsh-plugins/git-commits`（独立目录，不属于任何业务仓库）
-- 安装：当前 profile（`desktop`）里以链接目录方式安装
-  `~/.dsh/profiles/desktop/node_modules/dsh-plugin-git-commits → ~/code/dsh-plugins/git-commits`
-- 生效范围：装进 profile 后对**所有会话、所有工作区**可用；面板顶部的工作区下拉会列出
-  `workspaceRegistry` 里登记的全部工作区，选择会被记住。
-- 其他 profile（例如 `dsh --profile web`）要用的话，`install_bundle` 指向这个绝对路径即可。
-- 改完代码：设置 → 插件 里把「Git 提交」关掉再打开（重载 Host 半边），再刷新页面（重载 Client 半边）。
-- 卸载：在 设置 → 插件 里移除 `dsh-plugin-git-commits`，不会影响磁盘上的源码。
-
-## 许可证
+## License
 
 [MIT](./LICENSE)

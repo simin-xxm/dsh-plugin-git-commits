@@ -166,6 +166,67 @@ function parseCommit(record) {
 }
 
 /**
+ * Run git and return both streams instead of throwing on failure.
+ * @param {string} directory working directory.
+ * @param {readonly string[]} args git arguments.
+ * @param {number} timeoutMs kill the child after this long.
+ * @returns {Promise<{ ok: boolean, stdout: string, stderr: string }>} the outcome.
+ */
+async function gitFull(directory, args, timeoutMs = READ_TIMEOUT_MS) {
+  const argv = ['-C', directory, ...args]
+  if (gitBinary !== undefined) {
+    const result = await run(gitBinary, argv, timeoutMs)
+    return { ok: result.error === null, stdout: result.stdout, stderr: result.stderr }
+  }
+  for (const candidate of GIT_CANDIDATES) {
+    const result = await run(candidate, argv, timeoutMs)
+    if (result.error !== null && result.error.code === 'ENOENT') continue
+    gitBinary = candidate
+    return { ok: result.error === null, stdout: result.stdout, stderr: result.stderr }
+  }
+  throw new Error('git executable not found; set DSH_GIT_BINARY to its absolute path')
+}
+
+/**
+ * Read the upstream tracking ref of the current branch.
+ * @param {string} repoRoot repository root.
+ * @returns {Promise<string>} the upstream ref, or `''` when the branch has none.
+ */
+async function readUpstreamName(repoRoot) {
+  try {
+    return (await git(repoRoot, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'])).trim()
+  }
+  catch {
+    return ''
+  }
+}
+
+/**
+ * Count how many commits the branch is ahead of and behind its upstream.
+ * @param {string} repoRoot repository root.
+ * @returns {Promise<{ ahead: number, behind: number }>} the two counts.
+ */
+async function readAheadBehind(repoRoot) {
+  try {
+    const counts = (await git(repoRoot, ['rev-list', '--left-right', '--count', '@{upstream}...HEAD'])).trim().split(/\s+/)
+    return { behind: Number(counts[0] ?? 0) || 0, ahead: Number(counts[1] ?? 0) || 0 }
+  }
+  catch {
+    return { ahead: 0, behind: 0 }
+  }
+}
+
+/**
+ * List the paths git left unmerged after a failed merge or rebase.
+ * @param {string} repoRoot repository root.
+ * @returns {Promise<string[]>} the conflicted paths.
+ */
+async function readConflicts(repoRoot) {
+  const stdout = await git(repoRoot, ['diff', '--name-only', '--diff-filter=U']).catch(() => '')
+  return stdout.split('\n').filter(path => path.length > 0)
+}
+
+/**
  * Read the branch name, tolerating a detached HEAD and a missing remote.
  * @param {string} repoRoot repository root.
  * @returns {Promise<string>} the branch, or `''`.
@@ -383,32 +444,17 @@ async function readStatus(root) {
   applyCounts(groups.staged, parseNumstat(stagedNumstat))
   applyCounts(groups.unstaged, parseNumstat(unstagedNumstat))
 
-  let upstream = ''
-  try {
-    upstream = (await git(repoRoot, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'])).trim()
-  }
-  catch {
-    upstream = ''
-  }
-  let ahead = 0
-  let behind = 0
-  if (upstream.length > 0) {
-    try {
-      const counts = (await git(repoRoot, ['rev-list', '--left-right', '--count', '@{upstream}...HEAD'])).trim().split(/\s+/)
-      behind = Number(counts[0] ?? 0) || 0
-      ahead = Number(counts[1] ?? 0) || 0
-    }
-    catch {
-      ahead = 0
-      behind = 0
-    }
-  }
+  const upstream = await readUpstreamName(repoRoot)
+  const { ahead, behind } = upstream.length > 0 ? await readAheadBehind(repoRoot) : { ahead: 0, behind: 0 }
+  const remote = upstream.includes('/') ? upstream.slice(0, upstream.indexOf('/')) : ''
   return {
     root: repoRoot,
     branch: await readBranch(repoRoot),
     upstream,
+    remote,
     ahead,
     behind,
+    conflicts: await readConflicts(repoRoot),
     staged: groups.staged,
     unstaged: groups.unstaged,
     untracked: groups.untracked,
@@ -541,6 +587,97 @@ async function pushBranch(root) {
 }
 
 /**
+ * List the commits the upstream has that the local branch does not.
+ * @param {string} repoRoot repository root.
+ * @param {number} limit how many commits to list.
+ * @returns {Promise<Array<object>>} the incoming commits.
+ */
+async function readIncoming(repoRoot, limit = 20) {
+  const stdout = await git(repoRoot, [
+    'log',
+    '--no-merges',
+    `--max-count=${limit}`,
+    '--pretty=format:%H%x1f%h%x1f%an%x1f%s',
+    'HEAD..@{upstream}',
+  ]).catch(() => '')
+  const commits = []
+  for (const line of stdout.split('\n')) {
+    const fields = line.split('\u001f')
+    if (fields.length < 4) continue
+    commits.push({ hash: fields[0], shortHash: fields[1], author: fields[2], subject: fields[3] })
+  }
+  return commits
+}
+
+/**
+ * Fetch every remote and prune deleted refs, then report the new gap.
+ * @param {string} root requested directory.
+ * @returns {Promise<object>} the command report.
+ */
+async function fetchRemote(root) {
+  const repoRoot = (await git(root, ['rev-parse', '--show-toplevel'])).trim()
+  const result = await gitFull(repoRoot, ['fetch', '--all', '--prune'], WRITE_TIMEOUT_MS)
+  if (!result.ok) throw new Error(failureMessage(result))
+  const upstream = await readUpstreamName(repoRoot)
+  const { ahead, behind } = upstream.length > 0 ? await readAheadBehind(repoRoot) : { ahead: 0, behind: 0 }
+  return {
+    root: repoRoot,
+    output: (result.stderr.trim().length > 0 ? result.stderr : result.stdout).trim(),
+    upstream,
+    ahead,
+    behind,
+    incoming: await readIncoming(repoRoot),
+  }
+}
+
+/**
+ * Pull the upstream into the current branch, stashing local edits first.
+ * @param {string} root requested directory.
+ * @param {'rebase' | 'merge'} mode how to integrate the upstream.
+ * @returns {Promise<object>} the command report.
+ */
+async function pullBranch(root, mode) {
+  const repoRoot = (await git(root, ['rev-parse', '--show-toplevel'])).trim()
+  const upstream = await readUpstreamName(repoRoot)
+  if (upstream.length === 0) throw new Error('no-upstream')
+  const args = mode === 'merge'
+    ? ['pull', '--no-rebase', '--autostash']
+    : ['pull', '--rebase', '--autostash']
+  const result = await gitFull(repoRoot, args, WRITE_TIMEOUT_MS)
+  const conflicts = await readConflicts(repoRoot)
+  const { ahead, behind } = await readAheadBehind(repoRoot)
+  if (!result.ok) {
+    const error = new Error(failureMessage(result))
+    error.conflicts = conflicts
+    error.output = (result.stderr.trim().length > 0 ? result.stderr : result.stdout).trim()
+    throw error
+  }
+  return {
+    root: repoRoot,
+    output: (result.stdout.trim().length > 0 ? result.stdout : result.stderr).trim(),
+    upstream,
+    ahead,
+    behind,
+    conflicts,
+    mode,
+  }
+}
+
+/**
+ * Abort an in-progress merge, rebase, or cherry-pick.
+ * @param {string} root requested directory.
+ * @returns {Promise<object>} the command report.
+ */
+async function abortOperation(root) {
+  const repoRoot = (await git(root, ['rev-parse', '--show-toplevel'])).trim()
+  for (const args of [['rebase', '--abort'], ['merge', '--abort'], ['cherry-pick', '--abort']]) {
+    const result = await gitFull(repoRoot, args, WRITE_TIMEOUT_MS)
+    if (result.ok) return { root: repoRoot, command: `git ${args.join(' ')}` }
+  }
+  throw new Error('nothing-to-abort')
+}
+
+/**
  * Bound a numeric query parameter.
  * @param {URLSearchParams} params query parameters.
  * @param {string} name parameter name.
@@ -617,10 +754,23 @@ async function handleWrite(operation, root, body) {
     if (operation === 'push') {
       return { status: 200, body: { ok: true, ...(await pushBranch(root.path)) } }
     }
+    if (operation === 'fetch') {
+      return { status: 200, body: { ok: true, ...(await fetchRemote(root.path)) } }
+    }
+    if (operation === 'pull') {
+      const mode = body.mode === 'merge' ? 'merge' : 'rebase'
+      return { status: 200, body: { ok: true, ...(await pullBranch(root.path, mode)) } }
+    }
+    if (operation === 'abort') {
+      return { status: 200, body: { ok: true, ...(await abortOperation(root.path)) } }
+    }
     return { status: 404, body: { ok: false, error: 'unknown-operation' } }
   }
   catch (error) {
-    return { status: 200, body: { ok: false, error: error instanceof Error ? error.message : String(error) } }
+    const body = { ok: false, error: error instanceof Error ? error.message : String(error) }
+    if (Array.isArray(error?.conflicts)) body.conflicts = error.conflicts
+    if (typeof error?.output === 'string') body.output = error.output
+    return { status: 200, body }
   }
 }
 

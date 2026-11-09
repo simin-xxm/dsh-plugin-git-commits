@@ -1,9 +1,9 @@
 {
   "name": "dsh-plugin-git-commits",
-  "version": "1.0.0",
-  "type": "module",
-  "description": "Browse git history and compare the files changed by each commit",
+  "version": "1.1.0",
+  "description": "Browse git history, stage and commit changes, and pull, push, or sync the current branch from the Harness Web UI",
   "icon": "./icon.svg",
+  "type": "module",
   "main": "./index.js",
   "exports": {
     ".": "./index.js",
@@ -21,11 +21,16 @@
   ],
   "keywords": [
     "dsh-plugin",
+    "dsh",
     "git",
     "git-commits",
-    "diff",
+    "git-diff",
+    "git-commit",
+    "git-push",
+    "git-pull",
     "deepseek-harness"
   ],
+  "author": "simin-xxm",
   "license": "MIT",
   "homepage": "https://github.com/simin-xxm/dsh-plugin-git-commits#readme",
   "repository": {
@@ -34,6 +39,9 @@
   },
   "bugs": {
     "url": "https://github.com/simin-xxm/dsh-plugin-git-commits/issues"
+  },
+  "engines": {
+    "dsh": ">=0.2.2-rc.1"
   },
   "dsh": {
     "bundle": {

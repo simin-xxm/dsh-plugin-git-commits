@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check index.js
+          node --check client.js
+
+      - name: Validate JSON files
+        run: |
+          for file in package.json locale/*.json; do
+            node -e "JSON.parse(require('fs').readFileSync('$file', 'utf8'))"
+          done
+
+      - name: Validate the icon is a self-contained SVG
+        run: |
+          node -e "
+            const svg = require('fs').readFileSync('icon.svg', 'utf8')
+            if (!svg.startsWith('<svg')) throw new Error('icon.svg is not an SVG document')
+            const remote = svg.match(/(?:href|src)=["']https?:\/\/[^"']+/g)
+            if (remote) throw new Error('icon.svg references remote assets: ' + remote.join(', '))
+            if (Buffer.byteLength(svg) > 256 * 1024) throw new Error('icon.svg exceeds 256 KiB')
+          "
+
+      - name: Verify the bundle patch points at this package
+        run: |
+          node -e "
+            const fs = require('fs')
+            const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+            const patch = fs.readFileSync(manifest.dsh.bundle.patch, 'utf8')
+            if (!patch.includes(manifest.name)) throw new Error('cordis.patch.yml does not reference ' + manifest.name)
+            for (const file of manifest.files) {
+              if (file.includes('*')) continue
+              if (!fs.existsSync(file)) throw new Error('declared file is missing: ' + file)
+            }
+          "

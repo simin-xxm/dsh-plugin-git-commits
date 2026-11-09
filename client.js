@@ -65,6 +65,26 @@ window.__ModuleLoader__.load({
 			pushed: '已推送',
 			staged_one: '已暂存',
 			unstaged_one: '已取消暂存',
+			sync: '同步',
+			syncing: '同步中…',
+			syncTitle: '从远端拉取最新代码',
+			synced: '已同步',
+			syncedUpToDate: '已是最新',
+			pullBehind: '拉取 ↓{n} 个提交',
+			pulling: '拉取中…',
+			pulled: '已拉取',
+			pullModeRebase: '变基（rebase）',
+			pullModeMerge: '合并（merge）',
+			pullMode: '拉取方式',
+			confirmPull: '确认拉取 {n} 个提交',
+			confirmPullTitle: '确认拉取远端的 {n} 个提交？本地未提交的改动会自动暂存并恢复。',
+			noUpstream: '当前分支没有上游分支，无法拉取',
+			conflicts: '有 {n} 个文件冲突',
+			conflictTitle: '冲突文件',
+			abortMerge: '中止合并',
+			abortDone: '已中止',
+			incoming: '远端新增 {n} 个提交',
+			noIncoming: '远端没有新提交',
 		}
 
 		const en = {
@@ -115,6 +135,26 @@ window.__ModuleLoader__.load({
 			pushed: 'Pushed',
 			staged_one: 'Staged',
 			unstaged_one: 'Unstaged',
+			sync: 'Sync',
+			syncing: 'Syncing…',
+			syncTitle: 'Fetch and pull the latest code from the remote',
+			synced: 'Synced',
+			syncedUpToDate: 'Already up to date',
+			pullBehind: 'Pull ↓{n}',
+			pulling: 'Pulling…',
+			pulled: 'Pulled',
+			pullModeRebase: 'Rebase',
+			pullModeMerge: 'Merge',
+			pullMode: 'Pull strategy',
+			confirmPull: 'Confirm pull {n}',
+			confirmPullTitle: 'Pull the {n} incoming commits? Local uncommitted changes are stashed and restored automatically.',
+			noUpstream: 'This branch has no upstream, so it cannot pull',
+			conflicts: '{n} conflicted files',
+			conflictTitle: 'Conflicted files',
+			abortMerge: 'Abort merge',
+			abortDone: 'Aborted',
+			incoming: '{n} new commits on the remote',
+			noIncoming: 'No new commits on the remote',
 		}
 
 		const PANEL_CSS = `
@@ -220,6 +260,22 @@ window.__ModuleLoader__.load({
 .gc-notice.ok { background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 12%, transparent); color: var(--dsw-alias-state-success-primary); }
 .gc-notice.error { background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent); color: var(--dsw-alias-state-error-primary); }
 .gc-hint { font-size: 10.5px; color: var(--dsw-alias-state-idle-primary); }
+.gc-syncbtn { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 7px; border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
+.gc-syncbtn:hover:not(:disabled) { border-color: var(--dsw-alias-border-l2); }
+.gc-syncbtn:disabled { opacity: .45; cursor: default; }
+.gc-syncbtn[data-pending='true'] { border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 55%, transparent); color: var(--dsw-alias-brand-primary); background: color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, transparent); }
+.gc-badge { display: inline-flex; align-items: center; height: 16px; padding: 0 5px; border-radius: 999px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; font-weight: 600; background: color-mix(in srgb, var(--dsw-alias-brand-primary) 18%, transparent); color: var(--dsw-alias-brand-primary); }
+.gc-badge.down { background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 22%, transparent); color: var(--dsw-alias-state-warn-primary); }
+.gc-conflict { flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-block-start: 1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary) 40%, transparent); background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent); }
+.gc-conflict-text { flex: 1 1 auto; min-width: 0; font-size: 11.5px; color: var(--dsw-alias-state-error-primary); }
+.gc-conflict-files { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+.gc-modal-scrim { position: fixed; inset: 0; pointer-events: auto; background: color-mix(in srgb, var(--dsw-alias-bg-base) 66%, transparent); display: flex; align-items: center; justify-content: center; padding: 24px; }
+.gc-modal { width: min(460px, 92vw); border-radius: 12px; border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1); box-shadow: 0 12px 32px rgba(0, 0, 0, .28); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.gc-modal-title { font-size: 13.5px; font-weight: 600; line-height: 19px; }
+.gc-modal-body { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+.gc-modal-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dsw-alias-label-secondary); }
+.gc-modal-row .gc-spacer { flex: 1 1 auto; }
+.gc-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .gc-foot { flex: none; padding: 6px 14px; border-block-start: 1px solid var(--dsw-alias-border-l1); font-size: 11px; color: var(--dsw-alias-state-idle-primary); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .gc-foot-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 880px) {
@@ -617,6 +673,10 @@ window.__ModuleLoader__.load({
 			const [busy, setBusy] = React.useState('')
 			const [notice, setNotice] = React.useState(null)
 			const [confirmPush, setConfirmPush] = React.useState(false)
+			const [pullMode, setPullMode] = React.useState('rebase')
+			const [pullPrompt, setPullPrompt] = React.useState(null)
+			const [conflicts, setConflicts] = React.useState([])
+			const [incoming, setIncoming] = React.useState([])
 
 			const [history, setHistory] = React.useState({ phase: 'idle', commits: [], hasMore: false, root: '', branch: '', error: '' })
 			const [historyHash, setHistoryHash] = React.useState('')
@@ -682,6 +742,7 @@ window.__ModuleLoader__.load({
 						upstream: payload.upstream ?? '',
 						ahead: Number(payload.ahead ?? 0),
 						behind: Number(payload.behind ?? 0),
+						conflicts: Array.isArray(payload.conflicts) ? payload.conflicts : [],
 						staged: Array.isArray(payload.staged) ? payload.staged : [],
 						unstaged: Array.isArray(payload.unstaged) ? payload.unstaged : [],
 						untracked: Array.isArray(payload.untracked) ? payload.untracked : [],
@@ -871,6 +932,86 @@ window.__ModuleLoader__.load({
 				if (payload === null) return
 				setStatusToken(token => token + 1)
 				setHistoryToken(token => token + 1)
+			}
+
+			/**
+			 * Fetch the remote and report what is new upstream.
+			 */
+			async function sync() {
+				if (busy.length > 0) return
+				setBusy('fetch')
+				setNotice(null)
+				try {
+					const payload = await request('fetch', { params: { path: workspacePath }, body: {} })
+					const list = Array.isArray(payload.incoming) ? payload.incoming : []
+					setIncoming(list)
+					setNotice({
+						kind: 'ok',
+						text: list.length > 0
+							? `${t('incoming').replace('{n}', String(list.length))}${payload.behind > 0 ? ` · ${fill(t('behind'), payload.behind)}` : ''}`
+							: t('noIncoming'),
+					})
+				}
+				catch (error) {
+					setNotice({ kind: 'error', text: messageOf(error) })
+				}
+				finally {
+					setBusy('')
+					setStatusToken(token => token + 1)
+				}
+			}
+
+			/**
+			 * Open the pull confirmation, or run the pull once confirmed.
+			 * @param {number} count how many incoming commits will be integrated.
+			 */
+			async function pull(count) {
+				if (busy.length > 0) return
+				if (pullPrompt === null) {
+					setPullPrompt({ count })
+					return
+				}
+				setPullPrompt(null)
+				setBusy('pull')
+				setNotice(null)
+				try {
+					const payload = await request('pull', { params: { path: workspacePath }, body: { mode: pullMode } })
+					setConflicts(Array.isArray(payload.conflicts) ? payload.conflicts : [])
+					setIncoming([])
+					setNotice({ kind: 'ok', text: `${t('pulled')} · ${String(payload.output ?? '').split('\n').filter(line => line.trim().length > 0).slice(-1)[0] ?? ''}`.trim() })
+				}
+				catch (error) {
+					const list = Array.isArray(error?.conflicts) ? error.conflicts : []
+					setConflicts(list)
+					const detail = typeof error?.output === 'string' && error.output.length > 0 ? error.output : messageOf(error)
+					setNotice({ kind: 'error', text: list.length > 0 ? `${t('conflicts').replace('{n}', String(list.length))}\n${detail}` : detail })
+				}
+				finally {
+					setBusy('')
+					setStatusToken(token => token + 1)
+					setHistoryToken(token => token + 1)
+				}
+			}
+
+			/**
+			 * Abort an in-progress merge, rebase, or cherry-pick.
+			 */
+			async function abortMerge() {
+				if (busy.length > 0) return
+				setBusy('abort')
+				setNotice(null)
+				try {
+					await request('abort', { params: { path: workspacePath }, body: {} })
+					setConflicts([])
+					setNotice({ kind: 'ok', text: t('abortDone') })
+				}
+				catch (error) {
+					setNotice({ kind: 'error', text: messageOf(error) })
+				}
+				finally {
+					setBusy('')
+					setStatusToken(token => token + 1)
+				}
 			}
 
 			/**
@@ -1070,6 +1211,30 @@ window.__ModuleLoader__.load({
 								onChange: event => setWorkspacePath(event.target.value),
 							}, roots.map(item => h('option', { key: item.path, value: item.path }, item.title)))
 							: null,
+						worktree.upstream.length > 0
+							? h('button', {
+								type: 'button',
+								className: 'gc-syncbtn',
+								'data-pending': worktree.behind > 0 ? 'true' : 'false',
+								disabled: busy.length > 0 || worktree.phase !== 'ready',
+								title: t('syncTitle'),
+								onClick: () => sync(),
+							},
+							busy === 'fetch' ? t('syncing') : t('sync'),
+							worktree.behind > 0 ? h('span', { className: 'gc-badge down' }, fill(t('behind'), worktree.behind)) : null,
+							worktree.ahead > 0 ? h('span', { className: 'gc-badge' }, fill(t('ahead'), worktree.ahead)) : null)
+							: null,
+						worktree.behind > 0
+							? h('button', {
+								type: 'button',
+								className: 'gc-syncbtn',
+								'data-pending': 'true',
+								disabled: busy.length > 0 || worktree.phase !== 'ready',
+								title: t('syncTitle'),
+								onClick: () => pull(worktree.behind),
+							},
+							busy === 'pull' ? t('pulling') : fill(t('pullBehind'), worktree.behind))
+							: null,
 						h('button', {
 							type: 'button',
 							className: 'gc-iconbtn',
@@ -1085,6 +1250,18 @@ window.__ModuleLoader__.load({
 							onClick: () => setPanelOpen(false),
 						}, h(CloseIcon))),
 					view === 'changes' ? renderChanges() : renderHistory(),
+					conflicts.length > 0
+						? h('div', { className: 'gc-conflict', role: 'alert' },
+							h('span', { className: 'gc-conflict-text' },
+								fill(t('conflicts'), conflicts.length),
+								h('span', { className: 'gc-conflict-files' }, ` · ${conflicts.slice(0, 3).join(', ')}${conflicts.length > 3 ? ` … +${conflicts.length - 3}` : ''}`)),
+							h('button', {
+								type: 'button',
+								className: 'gc-secondary',
+								disabled: busy.length > 0,
+								onClick: abortMerge,
+							}, t('abortMerge')))
+						: null,
 					view === 'changes'
 						? h('div', { className: 'gc-composer' },
 							h('div', { className: 'gc-composer-box' },
@@ -1125,7 +1302,37 @@ window.__ModuleLoader__.load({
 						: null,
 					h('footer', { className: 'gc-foot' },
 						h('span', null, t('readOnly')),
-						h('span', { className: 'gc-foot-path', title: workspacePath }, worktree.upstream.length > 0 ? `${worktree.upstream}` : workspacePath)))
+						h('span', { className: 'gc-foot-path', title: workspacePath }, worktree.upstream.length > 0 ? `${worktree.upstream}` : workspacePath)),
+					pullPrompt === null
+						? null
+						: h('div', { className: 'gc-modal-scrim', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('confirmPull') },
+							h('div', { className: 'gc-modal' },
+								h('div', { className: 'gc-modal-title' }, fill(t('confirmPull'), pullPrompt.count)),
+								h('div', { className: 'gc-modal-body' }, t('confirmPullTitle')),
+								h('div', { className: 'gc-modal-row' },
+									h('span', null, t('pullMode')),
+									h('span', { className: 'gc-spacer' }),
+									h('select', {
+										className: 'gc-select',
+										value: pullMode,
+										'aria-label': t('pullMode'),
+										onChange: event => setPullMode(event.target.value),
+									},
+									h('option', { value: 'rebase' }, t('pullModeRebase')),
+									h('option', { value: 'merge' }, t('pullModeMerge')))),
+								h('div', { className: 'gc-modal-actions' },
+									h('button', {
+										type: 'button',
+										className: 'gc-secondary',
+										onClick: () => setPullPrompt(null),
+									}, t('close')),
+									h('button', {
+										type: 'button',
+										className: 'gc-primary',
+										disabled: busy.length > 0,
+										onClick: () => pull(pullPrompt.count),
+									}, busy === 'pull' ? t('pulling') : fill(t('confirmPull'), pullPrompt.count)))))
+				)
 			)
 		}
 

@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Git commits",
-    "description": "Browse a workspace repository's history and compare the files changed by each commit in a unified diff."
+    "description": "Browse commit history and file diffs from the sidebar, stage and commit changes, and sync, pull, or push the current branch."
   }
 }
