@@ -1180,10 +1180,16 @@ window.__ModuleLoader__.load({
 								: h(DiffView, { diff: historyDiff, file: historyFile, t }))))
 			}
 
+			// macOS Desktop: the host chrome rows carry `data-window-drag`, and those rows run along
+			// the top of the frame, exactly where this panel puts its own header row. The native drag
+			// region swallows every click on the tabs, the workspace select, the sync button and the
+			// refresh icon. A custom Client overlay has to declare its own window regions: this scope
+			// keeps the panel's own controls out of the drag calculation, so they act while the host
+			// keeps dragging its own chrome.
 			return h('div', { className: 'gc-panel-root', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('title') },
 				h('style', null, PANEL_CSS),
 				h('div', { className: 'gc-scrim', onClick: () => setPanelOpen(false) }),
-				h('div', { className: 'gc-panel' },
+				h('div', { className: 'gc-panel', 'data-window-drag-controls': true },
 					h('header', { className: 'gc-head' },
 						h('span', { className: 'gc-glyph' }, h(BranchIcon)),
 						h('div', { className: 'gc-titles' },

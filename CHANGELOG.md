@@ -4,6 +4,10 @@ All notable changes to this plugin are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Fixed
+
+- Panel header controls are clickable again on macOS Desktop. The panel is a custom Client overlay that sits over the host's window-drag chrome, so it now declares its own window region and the tabs, workspace selector, sync and refresh actions act instead of being swallowed by the native drag region.
+
 ## [1.1.0] — 2026-11-09
 
 ### Added
